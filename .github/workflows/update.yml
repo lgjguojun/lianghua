@@ -3,9 +3,9 @@ name: Auto Update Stock Data
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 1 * * *'
+    - cron: '0 1 * * *' # 每天北京时间 9:00
 
-# 强制开启写入权限
+# 核心权限：必须声明写权限，否则无法推送数据回仓库
 permissions:
   contents: write
 
@@ -13,39 +13,37 @@ jobs:
   update-job:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: 安装 Python 环境
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: 安装依赖库
         run: |
           pip install akshare pandas --upgrade
 
-      - name: Run update script
+      - name: 执行抓取脚本
         run: |
-          # 先确保创建文件夹
           mkdir -p data
           python update_data.py
-          # 关键排错步骤：在日志里显示到底下没下载到文件
-          echo "检查数据目录内容:"
-          ls -l data || echo "data 文件夹内为空"
+          echo "检查下载结果:"
+          ls -R data
 
-      - name: Commit and Push
+      - name: 提交并推送数据
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 强制添加 data 目录下的所有 day 文件
-          git add data/*.day || echo "未找到 day 文件"
+          # 强制将新生成的 day 文件加入暂存区
+          git add data/*.day || echo "没有发现新数据文件"
           
-          # 检查是否有文件变动
+          # 只有在有变化时才提交，防止任务报错
           if [ -n "$(git status --porcelain)" ]; then
-            git commit -m "自动更新量化数据: $(date)"
+            git commit -m "自动更新行情数据: $(date +'%Y-%m-%d %H:%M')"
             git push origin main
           else
-            echo "数据未发生变化，无需提交"
+            echo "数据未发生变化，跳过提交"
           fi
